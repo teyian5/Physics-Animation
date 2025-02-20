@@ -6,12 +6,20 @@ from io import BytesIO
 import re
 import os
 
+# 配置 LaTeX 模板以支持中文
+config.tex_template = TexTemplate(preamble=r"""
+\documentclass{article}
+\usepackage{ctex}  % 加载 ctex 宏包以支持中文
+\usepackage{amsmath}
+""")
+
 # 读取 Excel 文件
 file_path = '/Users/gean/Downloads/Teyian (3).xlsx'
 questions_df = pd.read_excel(file_path, sheet_name='questions')
 
 # 选择题目 ID
-question_id = int(input("请输入题目 ID: "))
+# question_id = int(input("请输入题目 ID: "))
+question_id=1
 
 # 获取题目信息
 question_info = questions_df[questions_df['id'] == question_id].iloc[0]
@@ -52,7 +60,8 @@ class QuestionScene(Scene):
         stem, *options = content.split('\n')
 
         # 创建题干文本对象
-        stem_text = Text(stem, font_size=24).to_edge(UP)
+        # 使用 MathTex 或 Tex 渲染 LaTeX 公式
+        stem_text = Tex(stem, tex_template=TexTemplateLibrary.ctex, font_size=24).to_edge(UP)
         self.play(Write(stem_text))
 
         # 询问用户选项排列方式
@@ -73,7 +82,7 @@ class QuestionScene(Scene):
                 image_path = image_objects.get(option_text.strip())
                 if image_path:
                     # 创建文本对象
-                    text_obj = Text(option, font_size=24)
+                    text_obj = Tex(option, tex_template=TexTemplateLibrary.ctex, font_size=24)
                     option_group.add(text_obj)
 
                     # 创建图片对象
@@ -81,7 +90,7 @@ class QuestionScene(Scene):
                     option_group.add(image_obj)
             else:
                 # 创建文本对象
-                text_obj = Text(option, font_size=24)
+                text_obj = Tex(option, tex_template=TexTemplateLibrary.ctex, font_size=24)
                 option_group.add(text_obj)
 
         # 根据用户选择排列选项
@@ -94,9 +103,9 @@ class QuestionScene(Scene):
         self.play(*[Write(obj) if isinstance(obj, VMobject) else FadeIn(obj) for obj in option_group])
 
         # 添加难度、答案和解析文本
-        difficulty_text = Text(f"难度: {difficulty}", font_size=20).next_to(option_group, DOWN, buff=0.5)
-        answer_text = Text(f"答案: {answer}", font_size=20).next_to(difficulty_text, DOWN, buff=0.5)
-        explanation_text = Text(f"解析: {explanation}", font_size=20).next_to(answer_text, DOWN, buff=0.5)
+        difficulty_text = Tex(f"难度: {difficulty}", tex_template=TexTemplateLibrary.ctex, font_size=20).next_to(option_group, DOWN, buff=0.5)
+        answer_text = Tex(f"答案: {answer}", tex_template=TexTemplateLibrary.ctex, font_size=20).next_to(difficulty_text, DOWN, buff=0.5)
+        explanation_text = Tex(f"解析: {explanation}", tex_template=TexTemplateLibrary.ctex, font_size=20).next_to(answer_text, DOWN, buff=0.5)
 
         self.play(Write(difficulty_text))
         self.play(Write(answer_text))
