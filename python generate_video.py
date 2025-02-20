@@ -45,10 +45,6 @@ for option_text, image_url in matches:
             print(f"下载图片时出错: {image_url}, 错误: {e}")
     image_objects[option_text.strip()] = image_path
 
-# 替换文本中的图片链接为本地图片路径
-for option_text, image_path in image_objects.items():
-    content = content.replace(f"![]({image_url})", "")
-
 # 定义 Manim 场景
 class QuestionScene(Scene):
     def construct(self):
