@@ -58,43 +58,51 @@ for image_url in matches:
 for image_url, image_path in image_objects.items():
     content = content.replace(image_url, image_path)
 
-# 定义 Manim 场景
 class QuestionScene(Scene):
     def construct(self):
         # 创建题干内容组
         stem_group = Group()
         # 创建选项内容组
         options_group = Group()
-
+        # 图片路径正则表达式
+        local_image_pattern = r"!\[(.*?)\]\((media/cache/.*?)\)"
         # 按行分割内容
         lines = content.split('\n')
         for line in lines:
             # 检查是否包含本地图片路径
-            local_image_pattern = r"!\[.*?\]\((media/cache/.*?)\)"
             local_matches = re.findall(local_image_pattern, line)
             for match in local_matches:
-                image_path = match.strip()
+                image_path = match[1].strip()  # 获取图片路径
                 if os.path.exists(image_path):
                     # 创建图片对象
                     image_obj = ImageMobject(image_path).scale(0.5)
-                    stem_group.add(image_obj)
+                    if question_type == "选择题" and line.startswith(("A.", "B.", "C.", "D.")):
+                        # 创建选项文本对象
+                        option_text = line.split("!")[0].strip()  # 提取选项文本（A、B、C、D）
+                        text_obj = Tex(option_text, tex_template=TexTemplateLibrary.ctex, font_size=20)
+                        # 将文本和图片组合在一起
+                        option_group = Group(text_obj, image_obj).arrange(RIGHT, buff=0.2)
+                        options_group.add(option_group)
+                    else:
+                        stem_group.add(image_obj)
                     line = line.replace(f"![]({image_path})", "")  # 移除图片标记
-
-            # 创建文本对象（如果还有文本内容）
-            if line.strip():
-                if question_type == "选择题" and line.startswith("A.") or line.startswith("B.") or line.startswith("C.") or line.startswith("D."):
-                    # 如果是选择题选项，将选项放在同一行
-                    options_group.add(Tex(line.strip(),tex_template=TexTemplateLibrary.ctex, font_size=20))
                 else:
-                    stem_group.add(Tex(line.strip(),tex_template=TexTemplateLibrary.ctex, font_size=20))
+                    print(f"警告：图片路径不存在 - {image_path}")
+
+            # # 创建文本对象（如果还有文本内容）
+            if line.strip():
+                text_obj = Tex(line.strip(), tex_template=TexTemplateLibrary.ctex, font_size=20)
+                stem_group.add(text_obj)
         # 调整内容的位置
+        stem_group.arrange(DOWN, buff=0.5)
         options_group.arrange(RIGHT, buff=0.5)
+
         # 添加试卷来源和难度信息
         source_text = Tex(f"来源: {paper_title}", tex_template=TexTemplateLibrary.ctex, font_size=20).to_corner(UL)
         difficulty_text = Tex(f"难度: {difficulty}", tex_template=TexTemplateLibrary.ctex, font_size=20).to_corner(UP)
 
-        # 题干放在来源的下面
-        stem_group.next_to(difficulty_text, DOWN, buff=0.5)
+        # 题干放在难度的下面
+        stem_group.next_to(difficulty_text, DOWN)
 
         # 选项放在题干的下面
         options_group.next_to(stem_group, DOWN, buff=0.5)
@@ -102,7 +110,7 @@ class QuestionScene(Scene):
         # 答案和解析
         answer_text = Tex(f"答案: {answer}", tex_template=TexTemplateLibrary.ctex, font_size=20).next_to(options_group, DOWN, buff=0.5)
         explanation_text = Tex(f"解析: {explanation}", tex_template=TexTemplateLibrary.ctex, font_size=20).next_to(answer_text, DOWN, buff=0.5)
-
+    
         # 添加所有内容到场景
         self.add(source_text, difficulty_text, stem_group, options_group, answer_text, explanation_text)
 
