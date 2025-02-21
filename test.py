@@ -24,6 +24,16 @@ ctex = TexTemplate(
         \usepackage{xcolor}
         \usepackage{microtype}
         \usepackage[UTF8]{ctex}
+        % 设置默认字体为 MapleMono
+        % 设置中文字体为 MiSans
+        \setCJKmainfont{MapleMono}
+        \setCJKsansfont{MapleMono}
+        \setCJKmonofont{MapleMono}
+
+        % 设置西文字体为 MiSans（可选）
+        \setmainfont{MiSans}
+        \setsansfont{MiSans}
+        \setmonofont{MiSans}
         \linespread{1}
     """
 )
