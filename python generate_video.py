@@ -6,20 +6,14 @@ from io import BytesIO
 import re
 import os
 
-# 配置 LaTeX 模板以支持中文
-config.tex_template = TexTemplate(preamble=r"""
-\documentclass{article}
-\usepackage{ctex}  % 加载 ctex 宏包以支持中文
-\usepackage{amsmath}
-""")
-
 # 读取 Excel 文件
 file_path = '/Users/gean/Downloads/Teyian (3).xlsx'
 questions_df = pd.read_excel(file_path, sheet_name='questions')
+paper_questions_df = pd.read_excel(file_path, sheet_name='paper_questions')
+papers_df = pd.read_excel(file_path, sheet_name='papers')
 
 # 选择题目 ID
-# question_id = int(input("请输入题目 ID: "))
-question_id=1
+question_id = 15  # 直接指定题目 ID
 
 # 获取题目信息
 question_info = questions_df[questions_df['id'] == question_id].iloc[0]
@@ -27,19 +21,26 @@ content = question_info['content']
 difficulty = question_info['difficulty']
 answer = question_info['answer']
 explanation = question_info['explanation']
+question_type = question_info['type']  # 获取题目类型
+
+# 通过 paper_questions 表找到试卷 ID
+paper_id = paper_questions_df[paper_questions_df['question_id'] == question_id]['paper_id'].values[0]
+# 通过试卷 ID 找到试卷标题
+paper_title = papers_df[papers_df['id'] == paper_id]['title'].values[0]
 
 # 定义缓存目录
 cache_dir = "media/cache"
 os.makedirs(cache_dir, exist_ok=True)
 
-# 解析文本中的图片链接和选项
-pattern = r"([A-D]\..*?)\s*!\[.*?\]\((https?://.*?)\)"
+# 解析文本中的图片链接
+pattern = r"!\[.*?\]\((https?://.*?)\)"
 matches = re.findall(pattern, content)
 
 # 下载图片并保存到本地
 image_objects = {}
-for option_text, image_url in matches:
-    image_path = os.path.join(cache_dir, f"{option_text.strip()}.png")
+for image_url in matches:
+    image_name = image_url.split("/")[-1].split("?")[0]  # 提取图片文件名
+    image_path = os.path.join(cache_dir, image_name)
     if not os.path.exists(image_path):
         try:
             response = requests.get(image_url)
@@ -51,63 +52,60 @@ for option_text, image_url in matches:
                 print(f"无法下载图片: {image_url}")
         except Exception as e:
             print(f"下载图片时出错: {image_url}, 错误: {e}")
-    image_objects[option_text.strip()] = image_path
+    image_objects[image_url] = image_path
+
+# 替换 content 中的图片链接为本地路径
+for image_url, image_path in image_objects.items():
+    content = content.replace(image_url, image_path)
 
 # 定义 Manim 场景
 class QuestionScene(Scene):
     def construct(self):
-        # 分离题干和选项
-        stem, *options = content.split('\n')
+        # 创建题干内容组
+        stem_group = Group()
+        # 创建选项内容组
+        options_group = Group()
 
-        # 创建题干文本对象
-        # 使用 MathTex 或 Tex 渲染 LaTeX 公式
-        stem_text = Tex(stem, tex_template=TexTemplateLibrary.ctex, font_size=24).to_edge(UP)
-        self.play(Write(stem_text))
-
-        # 询问用户选项排列方式
-        print("请选择选项排列方式：")
-        print("1. 1行显示所有选项")
-        print("2. 2行显示选项")
-        option_layout = input("请输入选项排列方式（1/2）：")
-        option_layout = int(option_layout) if option_layout in ['1', '2'] else 1
-
-        # 创建选项组
-        option_group = Group()
-        for option in options:
-            # 检查是否包含图片链接
-            match = re.match(r"([A-D]\..*?)\s*!\[.*?\]\((.*?)\)", option)
-            if match:
-                option_text, image_url = match.groups()
-                option = option_text  # 移除图片链接部分
-                image_path = image_objects.get(option_text.strip())
-                if image_path:
-                    # 创建文本对象
-                    text_obj = Tex(option, tex_template=TexTemplateLibrary.ctex, font_size=24)
-                    option_group.add(text_obj)
-
+        # 按行分割内容
+        lines = content.split('\n')
+        for line in lines:
+            # 检查是否包含本地图片路径
+            local_image_pattern = r"!\[.*?\]\((media/cache/.*?)\)"
+            local_matches = re.findall(local_image_pattern, line)
+            for match in local_matches:
+                image_path = match.strip()
+                if os.path.exists(image_path):
                     # 创建图片对象
                     image_obj = ImageMobject(image_path).scale(0.5)
-                    option_group.add(image_obj)
-            else:
-                # 创建文本对象
-                text_obj = Tex(option, tex_template=TexTemplateLibrary.ctex, font_size=24)
-                option_group.add(text_obj)
+                    stem_group.add(image_obj)
+                    line = line.replace(f"![]({image_path})", "")  # 移除图片标记
 
-        # 根据用户选择排列选项
-        if option_layout == 1:
-            option_group.arrange(RIGHT, buff=0.5).next_to(stem_text, DOWN, buff=0.5)
-        elif option_layout == 2:
-            option_group.arrange_in_grid(rows=2, cols=2, buff=0.5).next_to(stem_text, DOWN, buff=0.5)
+            # 创建文本对象（如果还有文本内容）
+            if line.strip():
+                if question_type == "选择题" and line.startswith("A.") or line.startswith("B.") or line.startswith("C.") or line.startswith("D."):
+                    # 如果是选择题选项，将选项放在同一行
+                    options_group.add(Tex(line.strip(),tex_template=TexTemplateLibrary.ctex, font_size=20))
+                else:
+                    stem_group.add(Tex(line.strip(),tex_template=TexTemplateLibrary.ctex, font_size=20))
+        # 调整内容的位置
+        options_group.arrange(RIGHT, buff=0.5)
+        # 添加试卷来源和难度信息
+        source_text = Tex(f"来源: {paper_title}", tex_template=TexTemplateLibrary.ctex, font_size=20).to_corner(UL)
+        difficulty_text = Tex(f"难度: {difficulty}", tex_template=TexTemplateLibrary.ctex, font_size=20).to_corner(UP)
 
-        # 添加选项到场景
-        self.play(*[Write(obj) if isinstance(obj, VMobject) else FadeIn(obj) for obj in option_group])
+        # 题干放在来源的下面
+        stem_group.next_to(difficulty_text, DOWN, buff=0.5)
 
-        # 添加难度、答案和解析文本
-        difficulty_text = Tex(f"难度: {difficulty}", tex_template=TexTemplateLibrary.ctex, font_size=20).next_to(option_group, DOWN, buff=0.5)
-        answer_text = Tex(f"答案: {answer}", tex_template=TexTemplateLibrary.ctex, font_size=20).next_to(difficulty_text, DOWN, buff=0.5)
+        # 选项放在题干的下面
+        options_group.next_to(stem_group, DOWN, buff=0.5)
+
+        # 答案和解析
+        answer_text = Tex(f"答案: {answer}", tex_template=TexTemplateLibrary.ctex, font_size=20).next_to(options_group, DOWN, buff=0.5)
         explanation_text = Tex(f"解析: {explanation}", tex_template=TexTemplateLibrary.ctex, font_size=20).next_to(answer_text, DOWN, buff=0.5)
 
-        self.play(Write(difficulty_text))
+        # 添加所有内容到场景
+        self.add(source_text, difficulty_text, stem_group, options_group, answer_text, explanation_text)
+
         self.play(Write(answer_text))
         self.play(Write(explanation_text))
 
